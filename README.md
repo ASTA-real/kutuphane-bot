@@ -1,15 +1,18 @@
-# Ümraniye Belediyesi Kütüphane Rezervasyon Botu
+# Ümraniye Kütüphane Rezervasyon Botu
 
-Bu proje, Ümraniye Belediyesi online kütüphane sisteminde otomatik sandalye rezervasyonu yapmak için Python ve Selenium kullanılarak geliştirilmiştir.
+Bu proje, Ümraniye Belediyesi Kütüphanesi'nin sandalye rezervasyon sistemini otomatikleştirmek için geliştirilmiş bir Python botudur. GUI üzerinden çoklu kullanıcı yönetimi ve bot çalıştırma desteği sunar.
 
 ## 🚀 Özellikler
-- CAPTCHA görüntüsü gösterme
-- Gün, seans ve sandalye seçimi
-- Kat ve tarih kontrolü
-- Otomatik giriş yapma
 
-## 🔧 Kullanım
+- Kullanıcı ekle/sil/güncelle
+- CAPTCHA çözme ve otomatik giriş
+- Kat/seans/tarih/sandalye seçimi
+- Toplu tarih güncelleme
+- GUI üzerinden kolay kullanım (CustomTkinter arayüzü)
+
+## 🛠 Gereksinimler
+
+Aşağıdaki kütüphaneleri yüklemeniz gerekir:
 
 ```bash
 pip install -r requirements.txt
-python bot.py
