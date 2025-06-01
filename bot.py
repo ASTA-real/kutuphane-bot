@@ -1,253 +1,124 @@
-import tkinter as tk
-from tkinter import messagebox
+# bot.py
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support.ui import Select
 import time
-import datetime
-import os
+from PIL import Image, ImageOps
+import pytesseract
 
-# Ana pencereyi oluştur
-root = tk.Tk()
-root.title("YOLUNU YORDAMINI V2")  # Başlık
-root.geometry("800x600")  # Pencere boyutu
-root.configure(bg='black')  # Arkaplan rengi
+KAT_KODLARI = {
+    "1": "80",
+    "bodrum": "81",
+    "zemin": "82"
+}
 
-# Başlık etiketi
-header_label = tk.Label(root, text="YOLUNU YORDAMINI V2", font=("Courier", 30), fg="purple", bg="black")
-header_label.pack(pady=50)
+SEANS_KODLARI = {
+    "08:30 - 13:50": "08%3A30+-+13%3A50",
+    "14:00 - 19:50": "14%3A00+-+19%3A50",
+    "20:00 - 23:50": "20%3A00+-+23%3A50"
+}
 
-# Kullanıcı adı
-username_label = tk.Label(root, text="Kullanıcı Adı (T.C. Kimlik No vs.):", font=("Courier", 14), fg="green", bg="black")
-username_label.pack(pady=10)
-username_entry = tk.Entry(root, font=("Courier", 14), fg="green", bg="black", insertbackground="green")
-username_entry.pack(pady=5)
+def rezervasyon_yap(kullanici):
+    print(f"\n🚀 {kullanici['tc']} için rezervasyon başlatılıyor...")
 
-# Şifre
-password_label = tk.Label(root, text="Şifre:", font=("Courier", 14), fg="green", bg="black")
-password_label.pack(pady=10)
-password_entry = tk.Entry(root, font=("Courier", 14), fg="green", bg="black", show="*", insertbackground="green")
-password_entry.pack(pady=5)
+    kat_kodu = KAT_KODLARI.get(kullanici["kat"])
+    seans_kodu = SEANS_KODLARI.get(kullanici["seans"])
+    rezervasyon_url = f"https://kutuphane.umraniye.bel.tr/rezervasyon/?p=1&dil=0&salon={kat_kodu}&seans={seans_kodu}"
 
-# Gün
-day_label = tk.Label(root, text="Gün (örn: 29 Nisan 2025 Salı):", font=("Courier", 14), fg="green", bg="black")
-day_label.pack(pady=10)
-day_entry = tk.Entry(root, font=("Courier", 14), fg="green", bg="black", insertbackground="green")
-day_entry.pack(pady=5)
-
-# Seans
-session_label = tk.Label(root, text="Seans (örn: 08:30 - 13:50):", font=("Courier", 14), fg="green", bg="black")
-session_label.pack(pady=10)
-session_entry = tk.Entry(root, font=("Courier", 14), fg="green", bg="black", insertbackground="green")
-session_entry.pack(pady=5)
-
-# Sandalye No
-seat_label = tk.Label(root, text="Sandalye No:", font=("Courier", 14), fg="green", bg="black")
-seat_label.pack(pady=10)
-seat_entry = tk.Entry(root, font=("Courier", 14), fg="green", bg="black", insertbackground="green")
-seat_entry.pack(pady=5)
-
-# İşlem butonu
-def submit_form():
-    # Kullanıcıdan verileri al
-    KULLANICI_ADI = username_entry.get()
-    SIFRE = password_entry.get()
-    GUN = day_entry.get()
-    SEANS = session_entry.get()
-    SANDALYE_NO = int(seat_entry.get())
-
-    # WebDriver ayarları (Headless modda)
     options = Options()
-    options.add_argument("--headless")  # Tarayıcıyı görünmez yap
-    options.add_argument("--window-size=1920,1080")  # Görüntü hatası olmasın
-    options.add_argument("--disable-gpu")  # GPU hatası olmasın diye
-    options.add_argument("--no-sandbox")  # Bazı sistemlerde sandbox hatası
-    options.add_argument("--disable-dev-shm-usage")  # Memory sorunları için
-
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    wait = WebDriverWait(driver, 10)
+    wait = WebDriverWait(driver, 20)
 
-    # Siteye git
-    driver.get("https://kutuphane.umraniye.bel.tr/rezervasyon/?p=2&dil=0&islem=giris")
-
-    # Çerezleri kabul et
     try:
-        cerez_onay_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.btn.btn-primary.mx-3.okudum")))
-        cerez_onay_button.click()
-        print("✅ Çerez ve Aydınlatma metnini kabul ettiniz.")
-    except Exception as e:
-        print("⚠️ Çerez butonunda hata:", e)
+        driver.get("https://kutuphane.umraniye.bel.tr/rezervasyon/?p=2&dil=0&islem=giris")
+        try:
+            wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn.okudum"))).click()
+        except: pass
 
-    # Kullanıcı adı ve şifre gir
-    kullanici_adi_input = wait.until(EC.presence_of_element_located((By.NAME, "kullanici")))
-    kullanici_adi_input.send_keys(KULLANICI_ADI)
+        wait.until(EC.presence_of_element_located((By.NAME, "kullanici"))).send_keys(kullanici["tc"])
+        driver.find_element(By.NAME, "sifre").send_keys(kullanici["sifre"])
 
-    sifre_input = driver.find_element(By.NAME, "sifre")
-    sifre_input.send_keys(SIFRE)
+        for deneme in range(1, 6):
+            print(f"🔁 CAPTCHA denemesi {deneme}...")
 
-    # CAPTCHA çözümü
-    try:
-        captcha_resmi = driver.find_element(By.CLASS_NAME, "captcha")
-        captcha_resmi.screenshot("captcha.png")
-        print("📷 CAPTCHA kaydedildi: captcha.png dosyasını açıyorum...")
-        os.system("start captcha.png")  # Windows'ta aç
-    except Exception as e:
-        print("❌ CAPTCHA resmi bulunamadı:", e)
+            captcha_element = driver.find_element(By.CLASS_NAME, "captcha")
+            captcha_element.screenshot("captcha.png")
 
-    captcha_kodu = input("Ekrandaki CAPTCHA kodunu gir: ")
+            img = Image.open("captcha.png")
+            gray = ImageOps.grayscale(img)
+            inverted = ImageOps.invert(gray)
+            captcha_code = pytesseract.image_to_string(inverted, config="--psm 8 -c tessedit_char_whitelist=0123456789").strip()
+            print("🧩 CAPTCHA çözüldü:", captcha_code)
 
-    captcha_input = driver.find_element(By.NAME, "code_girisForm")
-    captcha_input.send_keys(captcha_kodu)
+            driver.find_element(By.NAME, "code_girisForm").clear()
+            driver.find_element(By.NAME, "code_girisForm").send_keys(captcha_code)
+            driver.find_element(By.XPATH, '//button[contains(text(), "Giriş Yap")]').click()
+            time.sleep(2)
 
-    # Giriş butonuna tıkla
-    try:
-        btn_giris = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[contains(text(), "Giriş Yap")]')))
-        ActionChains(driver).move_to_element(btn_giris).click().perform()
-        print("✅ Giriş yapılıyor...")
-    except Exception as e:
-        print("❌ Giriş butonunda hata:", e)
-
-    # Modal pencereyi kapat (varsa)
-    try:
-        modal_kapat = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Tamam')]")))
-        modal_kapat.click()
-        print("✅ Modal pencere kapatıldı.")
-    except:
-        print("⚠️ Modal pencere yok, devam ediliyor.")
-
-    # Rezervasyon sekmesine git
-    try:
-        rezervasyon_link = wait.until(EC.presence_of_element_located((By.LINK_TEXT, "Rezervasyon")))
-        rezervasyon_link.click()
-        print("✅ Rezervasyon sekmesine geçildi.")
-    except Exception as e:
-        print("❌ Rezervasyon sekmesine geçerken hata:", e)
-
-    # Kullanıcıdan alınan GUN bilgisini tarih değerine çevirelim
-    gun_ilk_parca = GUN.split(' ')[0]  # gün numarası
-    ay_isim = GUN.split(' ')[1]        # ay ismi
-    yil = GUN.split(' ')[2]            # yıl
-
-    # Türkçe ayları İngilizceye çevir
-    aylar = {
-        'Ocak': '01',
-        'Şubat': '02',
-        'Mart': '03',
-        'Nisan': '04',
-        'Mayıs': '05',
-        'Haziran': '06',
-        'Temmuz': '07',
-        'Ağustos': '08',
-        'Eylül': '09',
-        'Ekim': '10',
-        'Kasım': '11',
-        'Aralık': '12'
-    }
-
-    ay_numarasi = aylar.get(ay_isim)
-
-    tarih_value = f"{yil}-{ay_numarasi}-{gun_ilk_parca.zfill(2)}"  # örnek: 2025-04-30
-
-    # Şimdi sitede bu tarih var mı kontrol edeceğiz
-    try:
-        tarih_select_element = wait.until(EC.presence_of_element_located((By.NAME, "tarih")))
-
-        mevcut_tarihler = [option.get_attribute("value") for option in tarih_select_element.find_elements(By.TAG_NAME, "option")]
-
-        if tarih_value not in mevcut_tarihler:
-            # Eğer yoksa JavaScript ile yeni bir option ekle
-            script = f'''
-            var select = document.getElementsByName('tarih')[0];
-            var option = document.createElement('option');
-            option.value = "{tarih_value}";
-            option.text = "{GUN}";
-            select.appendChild(option);
-            '''
-            driver.execute_script(script)
-            print(f"✅ {GUN} tarihi dropdown'a eklendi!")
+            try:
+                kapat_buton = WebDriverWait(driver, 3).until(
+                    EC.element_to_be_clickable((By.XPATH, '//button[contains(@class, "kapat") and contains(text(), "Kapat")]'))
+                )
+                kapat_buton.click()
+                print("❌ CAPTCHA hatalı, tekrar deneniyor...")
+                time.sleep(1)
+            except:
+                print("✅ Giriş başarılı!")
+                break
         else:
-            print(f"✅ {GUN} zaten dropdown'da mevcut.")
-    except Exception as e:
-        print(f"❌ Tarih kontrolünde hata: {e}")
+            print("❌ CAPTCHA 5 kez yanlış. Kullanıcı atlandı.")
+            return
 
-    # Kat seçimi
-    try:
-        kat_select_element = wait.until(EC.element_to_be_clickable((By.NAME, "salon")))
-        select_kat = Select(kat_select_element)
-        select_kat.select_by_visible_text("ZEMİN KAT [FA]")
-        print("✅ Kat seçildi.")
-    except Exception as e:
-        print("❌ Kat seçerken hata:", e)
+        try:
+            wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Tamam')]"))).click()
+        except: pass
 
-    # Tarih seçimi
-    try:
-        # Tarih dropdown'unu bul
-        tarih_select_element = wait.until(EC.element_to_be_clickable((By.NAME, "tarih")))
+        driver.get(rezervasyon_url)
+        print("✅ Rezervasyon sayfasına gidildi.")
 
-        # Tarihi ekleyelim
-        driver.execute_script('''var option = document.createElement("option");
-                                 option.value = "2025-04-30";
-                                 option.text = "30 Nisan 2025 Çarşamba";
-                                 arguments[0].appendChild(option);''', tarih_select_element)
-        print(f"✅ {GUN} tarihi dropdown'a eklendi!")
+        try:
+            tarih_dropdown = wait.until(EC.presence_of_element_located((By.NAME, "tarih")))
+            mevcut_tarihler = [opt.get_attribute("value") for opt in tarih_dropdown.find_elements(By.TAG_NAME, "option")]
 
-        # Dropdown'da tarihi seçelim
-        select_tarih = Select(tarih_select_element)
-        select_tarih.select_by_visible_text(GUN)
-        print("✅ Tarih seçildi.")
-    except Exception as e:
-        print(f"❌ Tarih seçerken hata: {e}")
+            if kullanici["tarih"] not in mevcut_tarihler:
+                driver.execute_script(f'''
+                    var select = document.getElementsByName('tarih')[0];
+                    var opt = document.createElement('option');
+                    opt.value = "{kullanici["tarih"]}";
+                    opt.text = "{kullanici["tarih"]} (manuel)";
+                    select.appendChild(opt);
+                ''')
+                print(f"🆕 Tarih eklendi: {kullanici['tarih']}")
 
-    # Seans seçimi
-    try:
-        seans_select_element = wait.until(EC.presence_of_element_located((By.NAME, "seans")))
-        select_seans = Select(seans_select_element)
-        wait.until(lambda driver: len(select_seans.options) > 1)
-        select_seans.select_by_visible_text(SEANS)
-        print("✅ Seans seçildi.")
-    except Exception as e:
-        print("❌ Seans seçerken hata:", e)
+            Select(tarih_dropdown).select_by_value(kullanici["tarih"])
+            print(f"📅 Tarih seçildi: {kullanici['tarih']}")
+            time.sleep(3)
+        except Exception as e:
+            print("❌ Tarih seçme hatası:", e)
 
-    # Sandalye seçimi
-    try:
-        sandalye = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, f"//span[contains(@class, 'sandalye') and text()='{SANDALYE_NO}']"))
-        )
-        sandalye.click()
-        print(f"✅ {SANDALYE_NO} numaralı sandalye seçildi.")
-    except Exception as e:
-        print("❌ Sandalye seçerken hata:", e)
+        try:
+            sandalye = wait.until(EC.element_to_be_clickable((
+                By.XPATH, f"//span[contains(@class, 'sandalye') and text()='{kullanici['sandalye']}']")))
+            sandalye.click()
+            print(f"💺 {kullanici['sandalye']} numaralı sandalye seçildi.")
+        except Exception as e:
+            print("❌ Sandalye seçme hatası:", e)
 
-    # EVET butonuna tıklama
-    try:
-        evet_butonu = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "evet")))
-        evet_butonu.click()
-        print("✅ EVET butonuna tıklandı.")
+        try:
+            evet_btn = wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "evet")))
+            evet_btn.click()
+            print("🎉 Rezervasyon tamamlandı!")
+        except Exception as e:
+            print("❌ EVET butonu hatası:", e)
 
-        print("\n" + "=" * 50)
-        print(f"{KULLANICI_ADI} için rezervasyon tamamlandı.")
-        print(f"Tarih: {GUN}")
-        print(f"Seans: {SEANS}")
-        print(f"Sandalye No: {SANDALYE_NO}")
-        print("=" * 50)
-
-        messagebox.showinfo("Başarı", f"{KULLANICI_ADI} için rezervasyon başarıyla tamamlandı.")
-    except Exception as e:
-        print("❌ EVET butonuna tıklarken hata:", e)
-
-    # Bitince tarayıcıyı kapat
-    time.sleep(5)
-    driver.quit()
-
-# Butona tıklandığında işlemi başlat
-submit_button = tk.Button(root, text="Rezervasyonu Tamamla", font=("Courier", 16), bg="purple", fg="green", command=submit_form)
-submit_button.pack(pady=50)
-
-# Ana pencereyi çalıştır
-root.mainloop()
+    finally:
+        time.sleep(5)
+        driver.quit()
